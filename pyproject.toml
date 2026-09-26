@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hydromem"
+version = "0.0.1"
+authors = [
+    { name = "Soundarya R", email = "soundaryaramachandra2003@gmail.com" }
+]
+description = "Hydraulic-Inspired Hierarchical Memory for LLMs with Local-First Privacy"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Intended Audience :: Developers",
+]
+dependencies = [
+    "cryptography>=41.0.0",
+]
+
+[project.optional-dependencies]
+embed = ["fastembed>=0.2.0"]
+secure = ["argon2-cffi>=21.0.0"]
+sqlite = []
+all = ["fastembed>=0.2.0", "argon2-cffi>=21.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/Soundarya-2004/Hydromem"
