@@ -165,8 +165,14 @@ def test_auto_evaporation_daemon():
     """Verify background auto-evaporation daemon thread."""
     mem = HydroMem(auto_evaporation=True, evaporation_interval=0.1)
     assert mem._evaporation_thread is not None
-    assert mem._evaporation_thread.is_alive()
     assert mem._evaporation_thread.daemon is True
+
+    # Allow OS thread scheduler to start thread (prevents macOS pthread startup latency race)
+    for _ in range(50):
+        if mem._evaporation_thread.is_alive():
+            break
+        time.sleep(0.02)
+    assert mem._evaporation_thread.is_alive()
 
     # Seed an expired memory in sensory tank
     mem.sensory_tank.add(
@@ -183,8 +189,12 @@ def test_auto_evaporation_daemon():
         time.sleep(0.05)
     assert mem.stats()["sensory"] == 0
 
-    # Clean shutdown
+    # Clean shutdown and wait for thread termination
     mem.stop_auto_evaporation()
+    for _ in range(50):
+        if not mem._evaporation_thread.is_alive():
+            break
+        time.sleep(0.02)
     assert not mem._evaporation_thread.is_alive()
 
 

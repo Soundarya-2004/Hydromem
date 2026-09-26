@@ -33,7 +33,7 @@ jobs:
 
       - name: Run test suite
         run: |
-          pytest -v
+          pytest -v -rA
 
       - name: Build distribution packages
         run: |
