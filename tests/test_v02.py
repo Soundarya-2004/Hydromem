@@ -237,3 +237,92 @@ def test_dynamic_recency_and_composite_ranking():
     assert results[0]["created_at"] > results[1]["created_at"]
     assert "deployment completed" in results[0]["text"]
     assert results[0]["score"] > results[1]["score"]
+
+
+def test_dynamic_user_configurations():
+    """Verify all dynamic user-defined thresholds, TTLs, weights, and sedimentation."""
+    # 1. Custom routing thresholds: lower threshold routes to LongTank easily
+    mem = HydroMem(
+        sensory_ttl=10.0,
+        short_ttl=60.0,
+        long_threshold=0.45,
+        short_threshold=0.2,
+        sedimentation_threshold=1,  # Sediments after > 1 recall (i.e. on 2nd recall)
+        pressure_weights=(0.1, 0.8, 0.1),
+        recency_decay_hours=12.0,
+        ranking_weights=(0.7, 0.2, 0.1),
+    )
+
+    assert mem.sensory_ttl == 10.0
+    assert mem.short_ttl == 60.0
+    assert mem.long_threshold == 0.45
+    assert mem.short_threshold == 0.2
+    assert mem.sedimentation_threshold == 1
+    assert mem.pressure_weights == (0.1, 0.8, 0.1)
+
+    # Ingest with high emotion (0.9); with weights (0.1, 0.8, 0.1), emotion dominates:
+    # relevance ~ 0.1 * 0.1 = 0.01; emotion = 0.9 * 0.8 = 0.72; recency = 1.0 * 0.1 = 0.1 -> pressure ~ 0.83 > 0.45
+    res = mem.remember("Short note", emotion=0.9)
+    assert res["tank"] == "long"
+    assert mem.stats()["long"] == 1
+
+    # Ingest medium emotion -> routes to short tank (pressure between 0.2 and 0.45)
+    # relevance ~ 0.01 + emotion 0.35 * 0.8 = 0.28 + recency 0.1 = 0.39 -> short tank
+    res_short = mem.remember("Working task checklist item", emotion=0.35)
+    assert res_short["tank"] == "short"
+    assert mem.stats()["short"] == 1
+
+    # Test sedimentation with user-defined threshold = 1
+    # First recall: recall_tracker = 1 (not > 1 yet)
+    mem.recall("checklist")
+    assert mem.stats()["short"] == 1
+    assert mem.stats()["long"] == 1
+
+    # Second recall: recall_tracker = 2 (> 1), triggers sedimentation into LongTank!
+    mem.recall("checklist")
+    assert mem.stats()["short"] == 0
+    assert mem.stats()["long"] == 2
+
+    # Dynamic on-the-fly override in recall
+    now = time.time()
+    mem.remember("Dynamic ranking test message", emotion=0.5, created_at=now - 7200.0)
+    # Custom decay_hours and ranking_weights on the fly
+    recalled = mem.recall(
+        "Dynamic ranking",
+        recency_decay_hours=1.0,
+        ranking_weights=(0.1, 0.8, 0.1),
+    )
+    assert len(recalled) >= 1
+
+    # Dynamic forget/evaporate with custom max_age
+    mem.remember("Sensory item to evaporate", emotion=0.0)  # sensory tank
+    assert mem.stats()["sensory"] == 1
+    # Instant evaporation using sensory_max_age=0.0
+    mem.forget(sensory_max_age=0.0)
+    assert mem.stats()["sensory"] == 0
+
+    # Dynamic configuration persistence roundtrip
+    with tempfile.TemporaryDirectory() as tmpdir:
+        dyn_json = os.path.join(tmpdir, "dyn.json")
+        mem_persist = HydroMem(
+            save_path=dyn_json,
+            sensory_ttl=42.0,
+            short_ttl=1234.0,
+            long_threshold=0.65,
+            short_threshold=0.35,
+            sedimentation_threshold=5,
+            recency_decay_hours=48.0,
+        )
+        mem_persist.remember("Test persistence of config", emotion=0.7)
+        mem_persist.save()
+
+        # Reload into a fresh instance
+        reloaded = HydroMem(save_path=dyn_json)
+        assert reloaded.sensory_ttl == 42.0
+        assert reloaded.short_ttl == 1234.0
+        assert reloaded.long_threshold == 0.65
+        assert reloaded.short_threshold == 0.35
+        assert reloaded.sedimentation_threshold == 5
+        assert reloaded.recency_decay_hours == 48.0
+
+

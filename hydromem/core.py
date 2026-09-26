@@ -47,8 +47,17 @@ class HydroMem:
         salt: Optional[bytes] = None,
         salt_path: Optional[str] = None,
         use_argon2: bool = True,
+        sensory_ttl: float = 300.0,
+        short_ttl: float = 86400.0,
+        long_threshold: float = 0.8,
+        short_threshold: float = 0.4,
+        sedimentation_threshold: int = 3,
+        pressure_weights: Optional[tuple] = None,
+        pressure_text_scale: float = 100.0,
+        recency_decay_hours: float = 24.0,
+        ranking_weights: Optional[tuple] = None,
     ) -> None:
-        """Initialize HydroMem with hierarchical tanks, encryption key, and optional v0.2 extensions.
+        """Initialize HydroMem with hierarchical tanks, encryption key, and dynamic configuration.
 
         Args:
             encryption_password: Password string used to derive the local Fernet key.
@@ -60,6 +69,15 @@ class HydroMem:
             salt: Optional 16-byte cryptographic salt.
             salt_path: Optional path to persist or load the salt.
             use_argon2: Whether to prefer Argon2id KDF if available.
+            sensory_ttl: Sensory tank evaporation TTL window in seconds (default 300.0s).
+            short_ttl: Short tank evaporation TTL window in seconds (default 86400.0s).
+            long_threshold: Minimum pressure threshold to route into LongTank (default 0.8).
+            short_threshold: Minimum pressure threshold to route into ShortTank (default 0.4).
+            sedimentation_threshold: Recall count threshold for promotion to LongTank (default 3).
+            pressure_weights: Tuple of (relevance, emotion, recency) weights (default (0.6, 0.3, 0.1)).
+            pressure_text_scale: Text length normalization scale (default 100.0).
+            recency_decay_hours: Dynamic recency exponential decay half-life in hours (default 24.0).
+            ranking_weights: Tuple of (relevance, recency, importance) weights (default (0.5, 0.3, 0.2)).
         """
         self.key = generate_key(
             password=encryption_password,
@@ -67,8 +85,19 @@ class HydroMem:
             salt_path=salt_path,
             use_argon2=use_argon2,
         )
-        self.sensory_tank = SensoryTank()
-        self.short_tank = ShortTank()
+        # Dynamic user configurations
+        self.sensory_ttl = float(sensory_ttl)
+        self.short_ttl = float(short_ttl)
+        self.long_threshold = float(long_threshold)
+        self.short_threshold = float(short_threshold)
+        self.sedimentation_threshold = int(sedimentation_threshold)
+        self.pressure_weights = pressure_weights if pressure_weights is not None else (0.6, 0.3, 0.1)
+        self.pressure_text_scale = float(pressure_text_scale)
+        self.recency_decay_hours = float(recency_decay_hours)
+        self.ranking_weights = ranking_weights if ranking_weights is not None else (0.5, 0.3, 0.2)
+
+        self.sensory_tank = SensoryTank(ttl=self.sensory_ttl)
+        self.short_tank = ShortTank(ttl=self.short_ttl)
         self.long_tank = LongTank(key=self.key)
         self.id_counter: int = 0
         self.recall_tracker: Dict[int, int] = {}
@@ -141,6 +170,17 @@ class HydroMem:
             "sensory": self.sensory_tank.get_all(),
             "short": self.short_tank.get_all(),
             "long": self.long_tank.get_all(),
+            "config": {
+                "sensory_ttl": self.sensory_ttl,
+                "short_ttl": self.short_ttl,
+                "long_threshold": self.long_threshold,
+                "short_threshold": self.short_threshold,
+                "sedimentation_threshold": self.sedimentation_threshold,
+                "pressure_weights": list(self.pressure_weights),
+                "pressure_text_scale": self.pressure_text_scale,
+                "recency_decay_hours": self.recency_decay_hours,
+                "ranking_weights": list(self.ranking_weights),
+            },
         }
         return self._local_store.save(target_path, state)
 
@@ -161,6 +201,29 @@ class HydroMem:
         self.id_counter = int(state.get("id_counter", 0))
         self.recall_tracker = {int(k): v for k, v in state.get("recall_tracker", {}).items()}
 
+        config = state.get("config", {})
+        if config:
+            if "sensory_ttl" in config:
+                self.sensory_ttl = float(config["sensory_ttl"])
+                self.sensory_tank.ttl = self.sensory_ttl
+            if "short_ttl" in config:
+                self.short_ttl = float(config["short_ttl"])
+                self.short_tank.ttl = self.short_ttl
+            if "long_threshold" in config:
+                self.long_threshold = float(config["long_threshold"])
+            if "short_threshold" in config:
+                self.short_threshold = float(config["short_threshold"])
+            if "sedimentation_threshold" in config:
+                self.sedimentation_threshold = int(config["sedimentation_threshold"])
+            if "pressure_weights" in config:
+                self.pressure_weights = tuple(config["pressure_weights"])
+            if "pressure_text_scale" in config:
+                self.pressure_text_scale = float(config["pressure_text_scale"])
+            if "recency_decay_hours" in config:
+                self.recency_decay_hours = float(config["recency_decay_hours"])
+            if "ranking_weights" in config:
+                self.ranking_weights = tuple(config["ranking_weights"])
+
         self.sensory_tank.memories = []
         for item in state.get("sensory", []):
             self.sensory_tank.add(item)
@@ -180,25 +243,41 @@ class HydroMem:
         text: str,
         emotion: float = 0.5,
         created_at: Optional[float] = None,
+        pressure_weights: Optional[tuple] = None,
+        long_threshold: Optional[float] = None,
+        short_threshold: Optional[float] = None,
+        pressure_text_scale: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Ingest and route a memory item to the appropriate tank based on hydraulic pressure.
 
-        Routing threshold:
-            - pressure > 0.8: encrypted in LongTank (permanent)
-            - pressure > 0.4: stored in ShortTank (working memory)
+        Routing thresholds:
+            - pressure > long_threshold: encrypted in LongTank (permanent)
+            - pressure > short_threshold: stored in ShortTank (working memory)
             - otherwise: stored in SensoryTank (transient)
 
         Args:
             text: Plaintext content of the memory.
             emotion: Emotional intensity score in [0.0, 1.0]. Defaults to 0.5.
             created_at: Optional timestamp of creation. Defaults to current time.
+            pressure_weights: Optional tuple of (relevance, emotion, recency) weights.
+            long_threshold: Optional override for long-term threshold.
+            short_threshold: Optional override for short-term threshold.
+            pressure_text_scale: Optional override for text scale normalization.
 
         Returns:
             Dict[str, Any]: Metadata containing id, target tank name, and rounded pressure.
         """
         now = time.time()
         record_created_at = created_at if created_at is not None else now
-        pressure = calculate_pressure(text=text, emotion=emotion, recency=1.0)
+        weights = pressure_weights if pressure_weights is not None else self.pressure_weights
+        text_scale = pressure_text_scale if pressure_text_scale is not None else self.pressure_text_scale
+        pressure = calculate_pressure(
+            text=text,
+            emotion=emotion,
+            recency=1.0,
+            weights=weights,
+            text_scale=text_scale,
+        )
         self.id_counter += 1
         memory_id = self.id_counter
 
@@ -220,7 +299,10 @@ class HydroMem:
         if embedding is not None:
             memory_record["embedding"] = embedding
 
-        if pressure > 0.8:
+        th_long = long_threshold if long_threshold is not None else self.long_threshold
+        th_short = short_threshold if short_threshold is not None else self.short_threshold
+
+        if pressure > th_long:
             tank_name = "long"
             self.long_tank.add_encrypted(
                 text=text,
@@ -231,7 +313,7 @@ class HydroMem:
                 created_at=record_created_at,
                 embedding=embedding,
             )
-        elif pressure > 0.4:
+        elif pressure > th_short:
             tank_name = "short"
             self.short_tank.add(memory_record)
         else:
@@ -254,7 +336,14 @@ class HydroMem:
 
     # ---------------- Recall / Search API ----------------
 
-    def recall(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+    def recall(
+        self,
+        query: str,
+        top_k: int = 3,
+        recency_decay_hours: Optional[float] = None,
+        ranking_weights: Optional[tuple] = None,
+        sedimentation_threshold: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
         """Search and retrieve relevant memories across hierarchical tanks.
 
         Search order:
@@ -270,6 +359,9 @@ class HydroMem:
         Args:
             query: Search query string.
             top_k: Maximum number of memories to return.
+            recency_decay_hours: Optional override for exponential decay half-life in hours.
+            ranking_weights: Optional override for (relevance, recency, importance) ranking weights.
+            sedimentation_threshold: Optional override for recall count threshold before sedimentation.
 
         Returns:
             List[Dict[str, Any]]: Top matching memories sorted by composite score / pressure descending.
@@ -281,6 +373,10 @@ class HydroMem:
                 query_emb = self.embedding_engine.embed_text(query)
             except Exception:
                 pass
+
+        decay_h = recency_decay_hours if recency_decay_hours is not None else self.recency_decay_hours
+        weights = ranking_weights if ranking_weights is not None else self.ranking_weights
+        sed_threshold = sedimentation_threshold if sedimentation_threshold is not None else self.sedimentation_threshold
 
         # Collect candidate memories in order: LongTank (decrypted), ShortTank, SensoryTank
         candidates: List[tuple] = []
@@ -301,7 +397,7 @@ class HydroMem:
 
             mem_text = mem.get("text", "")
             mem_created_at = float(mem.get("created_at", mem.get("timestamp", now)))
-            dynamic_recency = compute_dynamic_recency(mem_created_at, current_time=now)
+            dynamic_recency = compute_dynamic_recency(mem_created_at, current_time=now, decay_hours=decay_h)
             pressure = float(mem.get("pressure", 0.0))
 
             # Determine relevance score
@@ -319,8 +415,8 @@ class HydroMem:
             self.recall_tracker[mem_id] = self.recall_tracker.get(mem_id, 0) + 1
             current_tank = original_tank
 
-            # Sedimentation logic: promote from ShortTank to LongTank upon > 3 recalls
-            if original_tank == "short" and is_sedimented(self.recall_tracker[mem_id]):
+            # Sedimentation logic: promote from ShortTank to LongTank upon exceeding sedimentation threshold
+            if original_tank == "short" and is_sedimented(self.recall_tracker[mem_id], threshold=sed_threshold):
                 self.short_tank.remove(mem_id)
                 self.long_tank.add_encrypted(
                     text=mem_text,
@@ -339,6 +435,7 @@ class HydroMem:
                 relevance=relevance,
                 recency=dynamic_recency,
                 importance=pressure,
+                weights=weights,
             )
 
             result_item: Dict[str, Any] = {
@@ -362,20 +459,36 @@ class HydroMem:
 
     # ---------------- Maintenance & Evaporation API ----------------
 
-    def forget(self, expired: bool = True) -> None:
+    def forget(
+        self,
+        expired: bool = True,
+        sensory_max_age: Optional[float] = None,
+        short_max_age: Optional[float] = None,
+    ) -> None:
         """Trigger evaporation across transient tanks (SensoryTank and ShortTank).
 
         Args:
-            expired: If True, purges expired items according to tank TTLs.
+            expired: If True, purges expired items according to tank TTLs or custom max ages.
+            sensory_max_age: Optional dynamic max age override for SensoryTank in seconds.
+            short_max_age: Optional dynamic max age override for ShortTank in seconds.
         """
-        self.sensory_tank.evaporate()
-        self.short_tank.evaporate()
+        self.sensory_tank.evaporate(max_age=sensory_max_age)
+        self.short_tank.evaporate(max_age=short_max_age)
         if self.save_path:
             self.save()
 
-    def evaporate(self, expired: bool = True) -> None:
+    def evaporate(
+        self,
+        expired: bool = True,
+        sensory_max_age: Optional[float] = None,
+        short_max_age: Optional[float] = None,
+    ) -> None:
         """Convenience alias for forget()."""
-        self.forget(expired=expired)
+        self.forget(
+            expired=expired,
+            sensory_max_age=sensory_max_age,
+            short_max_age=short_max_age,
+        )
 
     def stats(self) -> Dict[str, int]:
         """Return memory statistics across all tanks and total recalls.

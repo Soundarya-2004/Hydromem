@@ -1,9 +1,9 @@
 """Storage tanks for HydroMem hydraulic memory hierarchy.
 
-Provides three specialized storage tiers:
-- SensoryTank: Transient short-lived buffer (5 minutes / 300s TTL)
-- ShortTank: Intermediate working memory (24 hours / 86400s TTL)
-- LongTank: Encrypted permanent storage (AES Fernet encrypted)
+Provides three specialized, user-configurable storage tiers:
+- SensoryTank: Transient short-lived buffer (configurable TTL, default 300s / 5min)
+- ShortTank: Intermediate working memory (configurable TTL, default 86400s / 24h)
+- LongTank: Encrypted permanent storage (AES Fernet encrypted, never expires)
 """
 
 import time
@@ -28,13 +28,18 @@ class DecryptedMemory(dict):
 
 
 class SensoryTank:
-    """Sensory buffer tank with a 300-second (5 minutes) evaporation window.
+    """Sensory buffer tank with a user-configurable evaporation window (default 300s).
 
     Stores dictionaries with: id, text, pressure, timestamp, created_at.
     """
 
-    def __init__(self) -> None:
-        """Initialize an empty SensoryTank."""
+    def __init__(self, ttl: float = 300.0) -> None:
+        """Initialize an empty SensoryTank.
+
+        Args:
+            ttl: Evaporation TTL window in seconds (default 300.0).
+        """
+        self.ttl = float(ttl)
         self.memories: List[Dict[str, Any]] = []
 
     def add(self, memory: Dict[str, Any]) -> Dict[str, Any]:
@@ -70,23 +75,24 @@ class SensoryTank:
         """
         return list(self.memories)
 
-    def evaporate(self, max_age: float = 300.0, current_time: Optional[float] = None) -> List[Dict[str, Any]]:
-        """Remove memories older than 300 seconds (or custom max_age).
+    def evaporate(self, max_age: Optional[float] = None, current_time: Optional[float] = None) -> List[Dict[str, Any]]:
+        """Remove memories older than the configured TTL (or custom max_age).
 
         Args:
-            max_age: Maximum age in seconds before evaporation occurs (default 300.0).
+            max_age: Maximum age in seconds before evaporation occurs (defaults to self.ttl).
             current_time: Reference timestamp; defaults to time.time().
 
         Returns:
             List[Dict[str, Any]]: The list of evaporated (removed) memories.
         """
+        limit = max_age if max_age is not None else self.ttl
         now = current_time if current_time is not None else time.time()
         retained: List[Dict[str, Any]] = []
         evaporated: List[Dict[str, Any]] = []
 
         for mem in self.memories:
             age = now - mem.get("timestamp", now)
-            if age > max_age:
+            if age >= limit:
                 evaporated.append(mem)
             else:
                 retained.append(mem)
@@ -117,13 +123,18 @@ class SensoryTank:
 
 
 class ShortTank:
-    """Short-term working memory tank with an 86400-second (24 hours) evaporation window.
+    """Short-term working memory tank with a user-configurable evaporation window (default 86400s).
 
     Stores dictionaries with: id, text, pressure, timestamp, created_at.
     """
 
-    def __init__(self) -> None:
-        """Initialize an empty ShortTank."""
+    def __init__(self, ttl: float = 86400.0) -> None:
+        """Initialize an empty ShortTank.
+
+        Args:
+            ttl: Evaporation TTL window in seconds (default 86400.0).
+        """
+        self.ttl = float(ttl)
         self.memories: List[Dict[str, Any]] = []
 
     def add(self, memory: Dict[str, Any]) -> Dict[str, Any]:
@@ -159,23 +170,24 @@ class ShortTank:
         """
         return list(self.memories)
 
-    def evaporate(self, max_age: float = 86400.0, current_time: Optional[float] = None) -> List[Dict[str, Any]]:
-        """Remove memories older than 86400 seconds (24 hours).
+    def evaporate(self, max_age: Optional[float] = None, current_time: Optional[float] = None) -> List[Dict[str, Any]]:
+        """Remove memories older than the configured TTL (or custom max_age).
 
         Args:
-            max_age: Maximum age in seconds before evaporation occurs (default 86400.0).
+            max_age: Maximum age in seconds before evaporation occurs (defaults to self.ttl).
             current_time: Reference timestamp; defaults to time.time().
 
         Returns:
             List[Dict[str, Any]]: The list of evaporated (removed) memories.
         """
+        limit = max_age if max_age is not None else self.ttl
         now = current_time if current_time is not None else time.time()
         retained: List[Dict[str, Any]] = []
         evaporated: List[Dict[str, Any]] = []
 
         for mem in self.memories:
             age = now - mem.get("timestamp", now)
-            if age > max_age:
+            if age >= limit:
                 evaporated.append(mem)
             else:
                 retained.append(mem)

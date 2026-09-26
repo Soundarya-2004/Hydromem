@@ -5,7 +5,7 @@
 **Hydraulic-Inspired Hierarchical Memory for LLMs with Local-First Privacy**
 
 [![CI & Tests](https://github.com/Soundarya-2004/Hydromem/actions/workflows/ci.yml/badge.svg)](https://github.com/Soundarya-2004/Hydromem/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/badge/pypi-v0.0.1.post1-blue.svg)](https://pypi.org/project/hydromem/)
+[![PyPI version](https://img.shields.io/badge/pypi-v0.0.2-blue.svg)](https://pypi.org/project/hydromem/)
 [![Python Version](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-brightgreen.svg)](https://github.com/Soundarya-2004/Hydromem)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Privacy: Local-First](https://img.shields.io/badge/privacy-100%25%20local--first-emerald.svg)](https://github.com/Soundarya-2004/Hydromem)
@@ -14,6 +14,7 @@
 <p align="center">
   <a href="#key-features">Key Features</a> •
   <a href="#architecture">Architecture</a> •
+  <a href="#dynamic-user-defined-configuration">Dynamic Configuration</a> •
   <a href="#installation">Installation</a> •
   <a href="#quickstart">Quickstart</a> •
   <a href="#mathematical-formulation">Formulation</a> •
@@ -41,9 +42,10 @@ Instead of treating context as an unmanaged buffer, HydroMem regulates memory re
 
 ## Key Features
 
+- **100% Dynamic & User-Defined**: Every chamber TTL, routing threshold, sedimentation count, hydraulic pressure weight, recency decay curve, and retrieval rank formula is user-configurable at initialization or overridden dynamically per call.
 - **Hydraulic Pressure Routing**: Dynamically computes fluid pressure based on context density, emotional valence, and recency, automatically dispatching memories to the appropriate chamber.
 - **Continuous Recency Decay**: Evaluates temporal relevance on the fly using exponential age decay ($e^{-\Delta t / 24\text{h}}$) rather than static timestamps.
-- **Automated Sedimentation**: Frequently recalled working memories ($> 3$ recalls) automatically consolidate ("sediment") into permanent storage.
+- **Automated Sedimentation**: Frequently recalled working memories automatically consolidate ("sediment") into permanent storage.
 - **Local-First Cryptography**: Permanent memories are stored as authenticated AES-256 Fernet ciphertext. Master keys are derived via **Argon2id** or **PBKDF2-HMAC-SHA256** (100,000 rounds) using local 16-byte cryptographic salts.
 - **Zero Heavy Dependencies by Default**: Core package requires only Python's standard library and `cryptography`. NumPy and heavy vector frameworks are strictly optional.
 - **Dual Persistence Backends**:
@@ -164,30 +166,116 @@ mem.stop_auto_evaporation()
 
 ---
 
+## Dynamic User-Defined Configuration
+
+HydroMem eliminates all rigid hardcoded assumptions. Every single threshold, evaporation window, mathematical weight, and sedimentation rule can be customized dynamically to suit your specific workload, agent lifecycle, or conversational domain:
+
+### 1. Global Customization via Constructor
+
+Configure custom TTLs, thresholds, and weights directly when initializing `HydroMem`:
+
+```python
+from hydromem import HydroMem
+
+# Tailor all memory dynamics according to your choice
+mem = HydroMem(
+    # Chamber Evaporation Windows (in seconds)
+    sensory_ttl=60.0,            # Sensory context expires after 1 minute (default: 300s)
+    short_ttl=3600.0,            # Working context expires after 1 hour (default: 86400s)
+
+    # Dynamic Routing Thresholds (hydraulic pressure)
+    long_threshold=0.7,          # Pressure > 0.7 routes directly to LongTank (default: 0.8)
+    short_threshold=0.3,         # Pressure > 0.3 routes to ShortTank (default: 0.4)
+
+    # Automated Sedimentation Rule
+    sedimentation_threshold=2,   # Promote from ShortTank to LongTank after 2 recalls (default: 3)
+
+    # Custom Hydraulic Pressure Weights: (w_relevance, w_emotion, w_recency)
+    pressure_weights=(0.5, 0.4, 0.1), # Emphasize emotion more heavily (default: (0.6, 0.3, 0.1))
+    pressure_text_scale=150.0,        # Text normalization divisor (default: 100.0)
+
+    # Dynamic Temporal Recency Decay Half-Life (in hours)
+    recency_decay_hours=12.0,    # Accelerated half-life decay (default: 24.0h)
+
+    # Retrieval Ranking Weights: (w_relevance, w_recency, w_importance)
+    ranking_weights=(0.6, 0.25, 0.15), # Custom search prioritization (default: (0.5, 0.3, 0.2))
+
+    # Optional local persistence
+    save_path="dynamic_agent.json",
+)
+```
+
+### 2. On-the-Fly Dynamic Overrides
+
+In addition to instance-level defaults, you can override any parameter dynamically on a per-call basis:
+
+```python
+# 1. Custom routing threshold or weights for a specific memory
+mem.remember(
+    "Critical incident response note",
+    emotion=0.9,
+    long_threshold=0.5,                  # Lower threshold for this specific ingestion
+    pressure_weights=(0.2, 0.7, 0.1),   # Emotion-dominant pressure calculation
+)
+
+# 2. Dynamic recency and ranking weights during search
+results = mem.recall(
+    "incident response",
+    top_k=5,
+    recency_decay_hours=6.0,             # Query strictly prioritizing recent hours
+    ranking_weights=(0.7, 0.2, 0.1),     # Heavy emphasis on keyword/vector relevance
+    sedimentation_threshold=1,           # Sediment immediately on 2nd recall
+)
+
+# 3. Dynamic selective evaporation
+# Evaporate sensory memories older than 30s and working memories older than 1800s
+mem.forget(sensory_max_age=30.0, short_max_age=1800.0)
+```
+
+### 3. Automatic Configuration Persistence
+
+When using disk storage (`JSON` or `SQLite`), your dynamic configurations are automatically saved and restored when the instance is reloaded:
+
+```python
+mem = HydroMem(save_path="agent_state.db", sensory_ttl=120.0, long_threshold=0.65)
+mem.remember("Dynamic setting test", emotion=0.7)
+mem.save()
+
+# Upon reloading, all dynamic configurations are seamlessly restored
+reloaded = HydroMem(save_path="agent_state.db")
+print(reloaded.sensory_ttl)    # 120.0
+print(reloaded.long_threshold) # 0.65
+```
+
+---
+
 ## Mathematical Formulation
 
 ### 1. Hydraulic Pressure ($P$)
-Hydraulic pressure regulates which storage chamber a memory enters upon ingestion:
+Hydraulic pressure regulates which storage chamber a memory enters upon ingestion. All weights and length scaling factors are completely user-defined:
 
-$$P = \text{clamp}\left( 0.6 \cdot \min\left(\frac{\text{len}(\text{text})}{100}, 1.0\right) + 0.3 \cdot \text{emotion} + 0.1 \cdot \text{recency},\; 0.0,\; 1.0 \right)$$
+$$P = \text{clamp}\left( w_{\text{rel}} \cdot \min\left(\frac{\text{len}(\text{text})}{\text{scale}}, 1.0\right) + w_{\text{emo}} \cdot \text{emotion} + w_{\text{rec}} \cdot \text{recency},\; 0.0,\; 1.0 \right)$$
 
-- $P > 0.8 \implies$ **LongTank** (Directly encrypted with AES-256)
-- $0.4 < P \le 0.8 \implies$ **ShortTank** (Working memory buffer)
-- $P \le 0.4 \implies$ **SensoryTank** (Transient buffer)
+- Default weights: $w_{\text{rel}} = 0.6,\; w_{\text{emo}} = 0.3,\; w_{\text{rec}} = 0.1,\; \text{scale} = 100.0$
+- $P > \theta_{\text{long}}$ (default $0.8$) $\implies$ **LongTank** (Directly encrypted with AES-256)
+- $\theta_{\text{short}} < P \le \theta_{\text{long}}$ (default $0.4 < P \le 0.8$) $\implies$ **ShortTank** (Working memory buffer)
+- $P \le \theta_{\text{short}}$ (default $\le 0.4$) $\implies$ **SensoryTank** (Transient buffer)
 
 ### 2. Dynamic Recency Decay ($R$)
-Rather than freezing recency at ingestion, HydroMem evaluates time elapsed continuously during recall:
+Rather than freezing recency at ingestion, HydroMem evaluates time elapsed continuously during recall with a configurable decay half-life $\tau_{\text{decay}}$:
 
-$$R(\Delta t) = \exp\left( -\frac{\Delta t_{\text{hours}}}{24.0} \right)$$
+$$R(\Delta t) = \exp\left( -\frac{\Delta t_{\text{hours}}}{\tau_{\text{decay}}} \right)$$
 
-A memory created 24 hours ago retains $\approx 36.8\%$ recency score, decaying gradually to prioritize fresher dialogue.
+- Default decay parameter: $\tau_{\text{decay}} = 24.0\text{ hours}$.
+- A memory created 24 hours ago retains $\approx 36.8\%$ recency score, decaying gradually to prioritize fresher dialogue.
 
 ### 3. Composite Retrieval Score
 Candidate memories across all chambers are scored and ranked via a weighted multi-factor objective:
 
-$$\text{Score} = 0.5 \cdot \text{Relevance} + 0.3 \cdot R(\Delta t) + 0.2 \cdot P$$
+$$\text{Score} = w_{\text{score\_rel}} \cdot \text{Relevance} + w_{\text{score\_rec}} \cdot R(\Delta t) + w_{\text{score\_imp}} \cdot P$$
 
-Where $\text{Relevance}$ is computed via normalized token overlap or cosine similarity.
+- Default ranking weights: $(0.5, 0.3, 0.2)$.
+- $\text{Relevance}$ is computed via normalized token overlap or cosine similarity.
 
 ---
 
@@ -212,13 +300,22 @@ HydroMem was built from the ground up for zero-trust, enterprise, and local-firs
 HydroMem(
     encryption_password: str = "hydromem",
     save_path: Optional[str] = None,
-    store_mode: Optional[str] = None,         # "json" or "sqlite"
-    embedding_model: Optional[str] = None,    # e.g. "BAAI/bge-small-en"
-    auto_evaporation: bool = False,           # Enable background cleanup thread
-    evaporation_interval: float = 3600.0,     # Interval in seconds
-    salt: Optional[bytes] = None,             # Custom 16-byte salt
-    salt_path: Optional[str] = None,          # Path to load/store salt file
-    use_argon2: bool = True,                  # Prefer Argon2id KDF
+    store_mode: Optional[str] = None,              # "json" or "sqlite"
+    embedding_model: Optional[str] = None,         # e.g. "BAAI/bge-small-en"
+    auto_evaporation: bool = False,                # Enable background cleanup thread
+    evaporation_interval: float = 3600.0,          # Daemon interval in seconds
+    salt: Optional[bytes] = None,                  # Custom 16-byte cryptographic salt
+    salt_path: Optional[str] = None,               # Path to load/store salt file
+    use_argon2: bool = True,                       # Prefer Argon2id KDF
+    sensory_ttl: float = 300.0,                    # Dynamic SensoryTank TTL (seconds)
+    short_ttl: float = 86400.0,                    # Dynamic ShortTank TTL (seconds)
+    long_threshold: float = 0.8,                   # Dynamic LongTank pressure threshold
+    short_threshold: float = 0.4,                  # Dynamic ShortTank pressure threshold
+    sedimentation_threshold: int = 3,              # Dynamic recall count threshold for sedimentation
+    pressure_weights: tuple = (0.6, 0.3, 0.1),     # Dynamic (relevance, emotion, recency) weights
+    pressure_text_scale: float = 100.0,            # Text normalization divisor
+    recency_decay_hours: float = 24.0,             # Dynamic recency exponential decay half-life
+    ranking_weights: tuple = (0.5, 0.3, 0.2),      # Dynamic retrieval ranking weights
 )
 ```
 
@@ -226,11 +323,11 @@ HydroMem(
 
 | Method | Signature | Description |
 | :--- | :--- | :--- |
-| `store` / `remember` | `(text: str, emotion: float = 0.5, created_at: Optional[float] = None) -> dict` | Computes hydraulic pressure and dispatches memory to target tank. |
-| `recall` | `(query: str, top_k: int = 3) -> list[dict]` | Searches all tanks, evaluates dynamic recency, sediments frequent items, and returns ranked results. |
-| `forget` / `evaporate`| `(expired: bool = True) -> None` | Purges expired memories according to tank TTLs (300s Sensory, 86400s Short). |
-| `save` | `(path: Optional[str] = None) -> Optional[str]` | Persists current state snapshot to disk (JSON or SQLite). |
-| `load` | `(path: Optional[str] = None) -> bool` | Reconstitutes memory state from a persisted snapshot. |
+| `store` / `remember` | `(text: str, emotion: float = 0.5, created_at: Optional[float] = None, pressure_weights: Optional[tuple] = None, long_threshold: Optional[float] = None, short_threshold: Optional[float] = None, pressure_text_scale: Optional[float] = None) -> dict` | Computes dynamic hydraulic pressure and dispatches memory to target tank with optional per-call overrides. |
+| `recall` | `(query: str, top_k: int = 3, recency_decay_hours: Optional[float] = None, ranking_weights: Optional[tuple] = None, sedimentation_threshold: Optional[int] = None) -> list[dict]` | Searches all tanks, evaluates dynamic recency, sediments frequent items, and returns ranked results with optional per-call overrides. |
+| `forget` / `evaporate`| `(expired: bool = True, sensory_max_age: Optional[float] = None, short_max_age: Optional[float] = None) -> None` | Purges expired memories according to tank TTLs or custom dynamic max ages. |
+| `save` | `(path: Optional[str] = None) -> Optional[str]` | Persists current state snapshot and dynamic configurations to disk (JSON or SQLite). |
+| `load` | `(path: Optional[str] = None) -> bool` | Reconstitutes memory state and dynamic configurations from a persisted snapshot. |
 | `stats` | `() -> dict` | Returns item counts across sensory, short, long tanks and lifetime recalls. |
 | `stop_auto_evaporation`| `() -> None` | Signals and cleanly shuts down the background daemon thread. |
 
@@ -241,9 +338,10 @@ HydroMem(
 | Feature | **HydroMem** | **MemGPT / Letta** | **LangChain Memory** | **Vector DBs** |
 | :--- | :---: | :---: | :---: | :---: |
 | **Core Architecture** | Fluid Hydraulic Hierarchy | OS Virtual Memory Hierarchy | Sliding Window / Buffer | Flat Vector Index |
+| **Dynamic Configuration** | **100% User-Defined & Tunable** | Hardcoded heuristics | Hardcoded token limits | Fixed collection params |
 | **Decay Mechanism** | Exponential Fluid Decay | LLM-driven eviction | Manual / None | Manual TTL |
-| **Dynamic Recency** | Continuous $e^{-\Delta t / 24\text{h}}$ | Static Timestamps | None | Timestamp Filter |
-| **Consolidation** | Automated Sedimentation ($>3$) | LLM Function-Calling | None | None |
+| **Dynamic Recency** | Continuous $e^{-\Delta t / \tau}$ | Static Timestamps | None | Timestamp Filter |
+| **Consolidation** | Automated Sedimentation | LLM Function-Calling | None | None |
 | **Local Privacy** | **100% Local-First** | Requires Server / LLM Backend | Dependent on Provider | Cloud or Self-Hosted |
 | **Encryption at Rest** | **AES Fernet (Argon2id/PBKDF2)**| Plaintext Database | None (In-Memory) | Database Specific |
 | **Persistence** | Zero-Config JSON & SQLite FTS5 | PostgreSQL / Redis | Vector DB or In-Memory | Dedicated Server |
@@ -272,7 +370,7 @@ If you use HydroMem in your research or AI applications, please cite:
   title = {HydroMem: Hydraulic-Inspired Hierarchical Memory for LLMs with Local-First Privacy},
   year = {2026},
   url = {https://github.com/Soundarya-2004/Hydromem},
-  note = {PyPI package version 0.0.1.post1}
+  note = {PyPI package version 0.0.2}
 }
 ```
 
@@ -283,3 +381,4 @@ If you use HydroMem in your research or AI applications, please cite:
 Distributed under the **MIT License**. See [`LICENSE`](file:///c:/Users/Soundarya/OneDrive/Desktop/Hydromem/LICENSE) for more information.
 
 Copyright (c) 2026 Soundarya R.
+

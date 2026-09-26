@@ -81,12 +81,13 @@ class LocalStore:
         """Persist state as a formatted JSON document."""
         temp_path = f"{path}.tmp"
         payload = {
-            "version": "0.0.1.post1",
+            "version": "0.0.2",
             "id_counter": state.get("id_counter", 0),
             "recall_tracker": {str(k): v for k, v in state.get("recall_tracker", {}).items()},
             "sensory": state.get("sensory", []),
             "short": state.get("short", []),
             "long": state.get("long", []),
+            "config": state.get("config", {}),
         }
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
@@ -106,6 +107,7 @@ class LocalStore:
                 "sensory": payload.get("sensory", []),
                 "short": payload.get("short", []),
                 "long": payload.get("long", []),
+                "config": payload.get("config", {}),
             }
         except Exception:
             return {
@@ -114,6 +116,7 @@ class LocalStore:
                 "sensory": [],
                 "short": [],
                 "long": [],
+                "config": {},
             }
 
     # ---------------- SQLite + FTS5 Backend ----------------
@@ -198,9 +201,11 @@ class LocalStore:
                 fts_items,
             )
 
-            # Metadata (id_counter, recall_tracker)
+            # Metadata (id_counter, recall_tracker, config)
             cursor.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES ('id_counter', ?)", (str(state.get("id_counter", 0)),))
             cursor.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES ('recall_tracker', ?)", (json.dumps(state.get("recall_tracker", {})),))
+            if "config" in state and state["config"]:
+                cursor.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES ('config', ?)", (json.dumps(state["config"]),))
             conn.commit()
         finally:
             conn.close()
@@ -216,6 +221,7 @@ class LocalStore:
             meta = dict(cursor.fetchall())
             id_counter = int(meta.get("id_counter", 0))
             recall_tracker = {int(k): v for k, v in json.loads(meta.get("recall_tracker", "{}")).items()}
+            config = json.loads(meta.get("config", "{}")) if "config" in meta else {}
 
             cursor.execute("SELECT id, tank, text, pressure, timestamp, created_at, embedding FROM memories")
             rows = cursor.fetchall()
@@ -252,6 +258,7 @@ class LocalStore:
                 "sensory": sensory,
                 "short": short,
                 "long": long,
+                "config": config,
             }
         finally:
             conn.close()

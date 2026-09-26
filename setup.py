@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="hydromem",
-    version="0.0.1.post1",
+    version="0.0.2",
     author="Soundarya R",
     author_email="soundaryaramachandra2003@gmail.com",
     description="Hydraulic-Inspired Hierarchical Memory for LLMs with Local-First Privacy",
