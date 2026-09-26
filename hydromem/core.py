@@ -116,7 +116,7 @@ class HydroMem:
         """Signal and stop the background auto-evaporation daemon thread."""
         self._stop_evaporation_event.set()
         if self._evaporation_thread and self._evaporation_thread.is_alive():
-            self._evaporation_thread.join(timeout=1.0)
+            self._evaporation_thread.join(timeout=3.0)
 
     # ---------------- Persistence API ----------------
 

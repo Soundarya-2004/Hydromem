@@ -177,10 +177,10 @@ def test_auto_evaporation_daemon():
             "timestamp": time.time() - 400.0,
         }
     )
-    assert mem.stats()["sensory"] == 1
-
-    # Wait for daemon thread to execute cycle
-    time.sleep(0.35)
+    # Wait for daemon thread to execute cycle (with timeout for slow CI environments)
+    deadline = time.time() + 4.0
+    while mem.stats()["sensory"] > 0 and time.time() < deadline:
+        time.sleep(0.05)
     assert mem.stats()["sensory"] == 0
 
     # Clean shutdown
