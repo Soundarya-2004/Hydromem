@@ -81,7 +81,7 @@ class LocalStore:
         """Persist state as a formatted JSON document."""
         temp_path = f"{path}.tmp"
         payload = {
-            "version": "0.0.1",
+            "version": "0.0.1.post1",
             "id_counter": state.get("id_counter", 0),
             "recall_tracker": {str(k): v for k, v in state.get("recall_tracker", {}).items()},
             "sensory": state.get("sensory", []),

@@ -5,7 +5,7 @@
 **Hydraulic-Inspired Hierarchical Memory for LLMs with Local-First Privacy**
 
 [![CI & Tests](https://github.com/Soundarya-2004/Hydromem/actions/workflows/ci.yml/badge.svg)](https://github.com/Soundarya-2004/Hydromem/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/badge/pypi-v0.0.1-blue.svg)](https://pypi.org/project/hydromem/)
+[![PyPI version](https://img.shields.io/badge/pypi-v0.0.1.post1-blue.svg)](https://pypi.org/project/hydromem/)
 [![Python Version](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-brightgreen.svg)](https://github.com/Soundarya-2004/Hydromem)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Privacy: Local-First](https://img.shields.io/badge/privacy-100%25%20local--first-emerald.svg)](https://github.com/Soundarya-2004/Hydromem)
@@ -272,7 +272,7 @@ If you use HydroMem in your research or AI applications, please cite:
   title = {HydroMem: Hydraulic-Inspired Hierarchical Memory for LLMs with Local-First Privacy},
   year = {2026},
   url = {https://github.com/Soundarya-2004/Hydromem},
-  note = {PyPI package version 0.0.1}
+  note = {PyPI package version 0.0.1.post1}
 }
 ```
 

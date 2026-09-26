@@ -22,7 +22,7 @@ from .utils import (
     is_sedimented,
 )
 
-__version__ = "0.0.1"
+__version__ = "0.0.1.post1"
 __author__ = "Soundarya R"
 __email__ = "soundaryaramachandra2003@gmail.com"
 
