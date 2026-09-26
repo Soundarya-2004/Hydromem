@@ -1,6 +1,6 @@
 <div align="center">
 
-# 💧 HydroMem
+# HydroMem
 
 **Hydraulic-Inspired Hierarchical Memory for LLMs with Local-First Privacy**
 
@@ -12,21 +12,21 @@
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 <p align="center">
-  <a href="#-key-features">Key Features</a> •
-  <a href="#-architecture">Architecture</a> •
-  <a href="#-installation">Installation</a> •
-  <a href="#-quickstart">Quickstart</a> •
-  <a href="#-mathematical-formulation">Formulation</a> •
-  <a href="#-api-reference">API Reference</a> •
-  <a href="#-comparison">Comparison</a> •
-  <a href="#-citation">Citation</a>
+  <a href="#key-features">Key Features</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#quickstart">Quickstart</a> •
+  <a href="#mathematical-formulation">Formulation</a> •
+  <a href="#api-reference">API Reference</a> •
+  <a href="#comparison">Comparison</a> •
+  <a href="#citation">Citation</a>
 </p>
 
 </div>
 
 ---
 
-## 🌊 Overview
+## Overview
 
 Modern Large Language Model (LLM) agent frameworks face a fundamental memory dilemma:
 1. **Context Window Bloat**: Stuffing uncompressed chat history into prompt context rapidly exhausts token quotas and inflates inference latency.
@@ -39,22 +39,22 @@ Instead of treating context as an unmanaged buffer, HydroMem regulates memory re
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-- **🌊 Hydraulic Pressure Routing**: Dynamically computes fluid pressure based on context density, emotional valence, and recency, automatically dispatching memories to the appropriate chamber.
-- **⏳ Continuous Recency Decay**: Evaluates temporal relevance on the fly using exponential age decay ($e^{-\Delta t / 24\text{h}}$) rather than static timestamps.
-- **💎 Automated Sedimentation**: Frequently recalled working memories ($> 3$ recalls) automatically consolidate ("sediment") into permanent storage.
-- **🔒 Local-First Cryptography**: Permanent memories are stored as authenticated AES-256 Fernet ciphertext. Master keys are derived via **Argon2id** or **PBKDF2-HMAC-SHA256** (100,000 rounds) using local 16-byte cryptographic salts.
-- **⚡ Zero Heavy Dependencies by Default**: Core package requires only Python's standard library and `cryptography`. NumPy and heavy vector frameworks are strictly optional.
-- **💾 Dual Persistence Backends**:
+- **Hydraulic Pressure Routing**: Dynamically computes fluid pressure based on context density, emotional valence, and recency, automatically dispatching memories to the appropriate chamber.
+- **Continuous Recency Decay**: Evaluates temporal relevance on the fly using exponential age decay ($e^{-\Delta t / 24\text{h}}$) rather than static timestamps.
+- **Automated Sedimentation**: Frequently recalled working memories ($> 3$ recalls) automatically consolidate ("sediment") into permanent storage.
+- **Local-First Cryptography**: Permanent memories are stored as authenticated AES-256 Fernet ciphertext. Master keys are derived via **Argon2id** or **PBKDF2-HMAC-SHA256** (100,000 rounds) using local 16-byte cryptographic salts.
+- **Zero Heavy Dependencies by Default**: Core package requires only Python's standard library and `cryptography`. NumPy and heavy vector frameworks are strictly optional.
+- **Dual Persistence Backends**:
   - **JSON**: Human-readable, atomic state snapshots with zero configuration.
   - **SQLite FTS5**: Native full-text index with BM25 ranking for $O(\log N)$ search complexity.
-- **🔍 Pluggable Semantic Search**: Seamlessly upgrade from normalized token-overlap keyword matching to local ONNX vector embeddings via `fastembed`.
-- **🕒 Background Evaporation Daemon**: Optional non-blocking daemon thread automatically purges expired transient memories without blocking your agent's execution loop.
+- **Pluggable Semantic Search**: Seamlessly upgrade from normalized token-overlap keyword matching to local ONNX vector embeddings via `fastembed`.
+- **Background Evaporation Daemon**: Optional non-blocking daemon thread automatically purges expired transient memories without blocking your agent's execution loop.
 
 ---
 
-## 🏛️ Architecture
+## Architecture
 
 ```text
                         [ Ingest Memory / store() ]
@@ -92,7 +92,7 @@ Instead of treating context as an unmanaged buffer, HydroMem regulates memory re
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### Core (Lightweight, Zero-Heavy Dependencies)
 ```bash
@@ -113,7 +113,7 @@ pip install "hydromem[all]"
 
 ---
 
-## 🚀 Quickstart
+## Quickstart
 
 ### 1. Basic In-Memory Memory Management
 
@@ -164,7 +164,7 @@ mem.stop_auto_evaporation()
 
 ---
 
-## 📐 Mathematical Formulation
+## Mathematical Formulation
 
 ### 1. Hydraulic Pressure ($P$)
 Hydraulic pressure regulates which storage chamber a memory enters upon ingestion:
@@ -191,7 +191,7 @@ Where $\text{Relevance}$ is computed via normalized token overlap or cosine simi
 
 ---
 
-## 🔒 Security Architecture
+## Security Architecture
 
 HydroMem was built from the ground up for zero-trust, enterprise, and local-first AI pipelines:
 
@@ -204,7 +204,7 @@ HydroMem was built from the ground up for zero-trust, enterprise, and local-firs
 
 ---
 
-## 📖 API Reference
+## API Reference
 
 ### `HydroMem`
 
@@ -236,9 +236,9 @@ HydroMem(
 
 ---
 
-## 📊 Comparison
+## Comparison
 
-| Feature | **HydroMem 💧** | **MemGPT / Letta** | **LangChain Memory** | **Vector DBs** |
+| Feature | **HydroMem** | **MemGPT / Letta** | **LangChain Memory** | **Vector DBs** |
 | :--- | :---: | :---: | :---: | :---: |
 | **Core Architecture** | Fluid Hydraulic Hierarchy | OS Virtual Memory Hierarchy | Sliding Window / Buffer | Flat Vector Index |
 | **Decay Mechanism** | Exponential Fluid Decay | LLM-driven eviction | Manual / None | Manual TTL |
@@ -251,7 +251,7 @@ HydroMem(
 
 ---
 
-## 🧪 Testing
+## Testing
 
 HydroMem maintains a comprehensive unit test suite tested across Linux, macOS, and Windows on Python 3.8 through 3.12:
 
@@ -260,25 +260,9 @@ HydroMem maintains a comprehensive unit test suite tested across Linux, macOS, a
 pytest -v -rA
 ```
 
-```text
-============================= test session starts =============================
-tests/test_memory.py::test_remember_routing PASSED                       [  9%]
-tests/test_memory.py::test_recall_keyword PASSED                         [ 18%]
-tests/test_memory.py::test_evaporation PASSED                            [ 27%]
-tests/test_memory.py::test_encryption PASSED                             [ 36%]
-tests/test_memory.py::test_sedimentation PASSED                          [ 45%]
-tests/test_v02.py::test_persistence_json PASSED                          [ 54%]
-tests/test_v02.py::test_persistence_sqlite_fts5 PASSED                   [ 63%]
-tests/test_v02.py::test_cosine_similarity_pure_python PASSED             [ 72%]
-tests/test_v02.py::test_key_derivation_and_backward_compat PASSED        [ 81%]
-tests/test_v02.py::test_auto_evaporation_daemon PASSED                   [ 90%]
-tests/test_v02.py::test_dynamic_recency_and_composite_ranking PASSED     [100%]
-============================= 11 passed in 3.15s ==============================
-```
-
 ---
 
-## 📑 Citation
+## Citation
 
 If you use HydroMem in your research or AI applications, please cite:
 
@@ -294,7 +278,7 @@ If you use HydroMem in your research or AI applications, please cite:
 
 ---
 
-## 📄 License
+## License
 
 Distributed under the **MIT License**. See [`LICENSE`](file:///c:/Users/Soundarya/OneDrive/Desktop/Hydromem/LICENSE) for more information.
 
